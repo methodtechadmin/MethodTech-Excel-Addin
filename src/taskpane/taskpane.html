@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MethodTech</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js" type="text/javascript"></script>
+    <link
+      rel="stylesheet"
+      href="https://res-1.cdn.office.net/files/fabric-cdn-prod_20230815.002/office-ui-fabric-core/11.1.0/css/fabric.min.css"
+    />
+    <link href="taskpane.css" rel="stylesheet" type="text/css" />
+  </head>
+  <body class="ms-font-m ms-welcome ms-Fabric">
+    <header class="ms-welcome__header methodtech-header">
+      <img class="methodtech-logo" width="90" height="90" src="../../assets/logo-methodtech.png" alt="MethodTech" title="MethodTech" />
+    </header>
+    <section id="sideload-msg" class="ms-welcome__main">
+      <h2 class="ms-font-xl">
+        Please
+        <a
+          target="_blank"
+          href="https://learn.microsoft.com/office/dev/add-ins/testing/test-debug-office-add-ins#sideload-an-office-add-in-for-testing"
+          >sideload</a
+        >
+        your add-in to see app body.
+      </h2>
+    </section>
+    <main id="app-body" class="ms-welcome__main" style="display: none">
+      <p class="ms-font-l" id="auth-status">Checking sign-in…</p>
+      <div
+        role="button"
+        id="microsoft-signin"
+        class="ms-welcome__action ms-Button ms-Button--hero ms-font-xl"
+        style="display: none; margin-bottom: 12px"
+      >
+        <span class="ms-Button-label">Sign in with Microsoft</span>
+      </div>
+      <h2 class="ms-font-l">MethodTech functions</h2>
+      <ul id="catalog-functions" class="ms-List ms-welcome__features"></ul>
+    </main>
+  </body>
+</html>
