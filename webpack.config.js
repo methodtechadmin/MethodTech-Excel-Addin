@@ -13,10 +13,8 @@ const urlProd = "https://www.contoso.com/"; // CHANGE THIS TO YOUR PRODUCTION DE
 
 /* global require, module, process */
 
-function loadEnvFile() {
-  const envPath = path.resolve(__dirname, ".env");
+function parseEnvFile(envPath) {
   const env = {};
-
   if (!fs.existsSync(envPath)) {
     return env;
   }
@@ -48,6 +46,27 @@ function loadEnvFile() {
   return env;
 }
 
+/**
+ * npm run build (production) → .env
+ * npm start / build:dev (development) → .env.local (falls back to .env)
+ */
+function loadEnvFile(isDev) {
+  const prodPath = path.resolve(__dirname, ".env");
+  const localPath = path.resolve(__dirname, ".env.local");
+
+  if (isDev) {
+    if (fs.existsSync(localPath)) {
+      console.log("[MethodTech] Loaded env from .env.local (local/dev)");
+      return parseEnvFile(localPath);
+    }
+    console.warn("[MethodTech] .env.local not found — falling back to .env for local/dev");
+    return parseEnvFile(prodPath);
+  }
+
+  console.log("[MethodTech] Loaded env from .env (production build)");
+  return parseEnvFile(prodPath);
+}
+
 async function getHttpsOptions() {
   const httpsOptions = await devCerts.getHttpsServerOptions();
   return { ca: httpsOptions.ca, key: httpsOptions.key, cert: httpsOptions.cert };
@@ -55,7 +74,7 @@ async function getHttpsOptions() {
 
 module.exports = async (env, options) => {
   const dev = options.mode === "development";
-  const fileEnv = loadEnvFile();
+  const fileEnv = loadEnvFile(dev);
   // Real Django host (used as webpack proxy target)
   const djangoProxyTarget = (process.env.DJANGO_BASE_URL || fileEnv.DJANGO_BASE_URL || "").replace(/\/$/, "");
   // In the Excel WebView (HTTPS), call same-origin so mixed-content HTTP is not blocked.

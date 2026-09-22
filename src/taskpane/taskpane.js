@@ -6,7 +6,10 @@
 /* global console, document, Office */
 
 import { ensureSignedIn } from "../auth/signIn";
-import { getCatalog } from "../catalog/catalog";
+import { FUNCTIONS_NAMESPACE } from "../auth/config";
+import { fetchCatalog, getCatalog } from "../catalog/catalog";
+import { registerCatalogFunctions } from "../catalog/registerFunctions";
+import { publishCatalogMetadata } from "../catalog/publishMetadata";
 
 function setAuthStatus(message, isError = false) {
   const el = document.getElementById("auth-status");
@@ -14,6 +17,16 @@ function setAuthStatus(message, isError = false) {
     return;
   }
   el.textContent = message;
+  el.style.color = isError ? "#a4262c" : "#107c10";
+}
+
+function setCatalogRefreshStatus(message, isError = false) {
+  const el = document.getElementById("catalog-refresh-status");
+  if (!el) {
+    return;
+  }
+  el.style.display = message ? "block" : "none";
+  el.textContent = message || "";
   el.style.color = isError ? "#a4262c" : "#107c10";
 }
 
@@ -37,9 +50,40 @@ function renderCatalogFunctions(catalog) {
     const name = String(item.name || item.id || "").toUpperCase();
     const li = document.createElement("li");
     li.className = "ms-ListItem";
-    li.innerHTML = `<span class="ms-font-m"><b>=METHODTECH.${name}()</b> — ${item.description || item.method_name || ""}</span>`;
+    li.innerHTML = `<span class="ms-font-m"><b>=${FUNCTIONS_NAMESPACE}.${name}()</b> — ${item.description || item.method_name || ""}</span>`;
     list.appendChild(li);
   });
+}
+
+async function refreshCatalogFromApi() {
+  const button = document.getElementById("refresh-catalog");
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Refreshing…";
+  }
+  setCatalogRefreshStatus("Calling catalog API…");
+
+  try {
+    await ensureSignedIn({ force: false, interactive: true });
+    const catalog = await fetchCatalog();
+    await publishCatalogMetadata(catalog);
+    const registered = await registerCatalogFunctions();
+    renderCatalogFunctions(catalog);
+    setCatalogRefreshStatus(
+      `Catalog refreshed: ${catalog.length} function(s), ${registered.length} registered.`
+    );
+  } catch (error) {
+    console.error("Catalog refresh failed:", error);
+    setCatalogRefreshStatus(
+      `Refresh failed: ${(error && error.message) || String(error)}`,
+      true
+    );
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Refresh catalog";
+    }
+  }
 }
 
 Office.onReady(async () => {
@@ -51,6 +95,13 @@ Office.onReady(async () => {
     msButton.style.display = "none";
   }
 
+  const refreshButton = document.getElementById("refresh-catalog");
+  if (refreshButton) {
+    refreshButton.addEventListener("click", () => {
+      refreshCatalogFromApi();
+    });
+  }
+
   setAuthStatus("Using current Excel account…");
 
   try {
@@ -60,6 +111,11 @@ Office.onReady(async () => {
     setAuthStatus(`Signed in as ${session.email}`);
   } catch (error) {
     console.error("Excel identity / Django sign-in failed:", error);
-    setAuthStatus(`Sign-in failed: ${error.message}`, true);
+    const detail =
+      (error && error.message) ||
+      (error && error.code != null && `Office auth error ${error.code}`) ||
+      (error && String(error)) ||
+      "unknown error";
+    setAuthStatus(`Sign-in failed: ${detail}`, true);
   }
 });

@@ -4,7 +4,7 @@ import { catalogToExcelFunctions } from "./registerFunctions";
 
 /**
  * Push catalog metadata to the local dev server so /functions.json
- * includes every METHODTECH.* name for Excel IntelliSense.
+ * includes every MTECH.* name for Excel IntelliSense.
  * Excel only reloads metadata on add-in restart.
  */
 export async function publishCatalogMetadata(catalog) {

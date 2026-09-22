@@ -1,8 +1,11 @@
 /* global process */
 
+/** Excel custom function prefix: =MTECH.MARKETCAP() — must match manifest Functions.Namespace */
+export const FUNCTIONS_NAMESPACE = "MTECH";
+
 export function getDjangoBaseUrl() {
   // In npm start (dev), this is "" so requests go to https://localhost:3001
-  // and webpack proxies /api + /v1 to DJANGO_BASE_URL from .env
+  // and webpack proxies /api + /v1 to DJANGO_BASE_URL from .env.local
   return (process.env.DJANGO_BASE_URL || "").replace(/\/$/, "");
 }
 

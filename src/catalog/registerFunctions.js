@@ -1,21 +1,106 @@
 /* global CustomFunctions, console */
 
-import { getDjangoBaseUrl } from "../auth/config";
+import { getDjangoBaseUrl, FUNCTIONS_NAMESPACE } from "../auth/config";
 import { djangoFetch } from "../auth/http";
 import { getAuthHeadersContext } from "../auth/session";
 import { getCatalog, getCatalogEntry } from "./catalog";
 
 /**
- * Flatten Excel range values into a plain JS array when needed.
+ * Convert an Excel range into a backend-friendly array payload.
+ *
+ * - 1D list / single column → ["v1", "v2", ...]  (no headers)
+ * - Multi-column with header row → [{ "colA": v, "colB": v }, ...]
+ * - Multi-column with only one row (no header+data) → leave as matrix
+ *
+ * @param {unknown} value Excel argument
+ * @param {{ forceObjectRows?: boolean }} [options]
+ *        forceObjectRows: always treat row 0 as headers (for params like `data`)
  */
-function normalizeParamValue(value, paramType) {
+function excelRangeToBackendArray(value, options = {}) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return value;
+  }
+
+  // Already a list of objects (unlikely from Excel, but keep as-is)
+  if (value[0] !== null && typeof value[0] === "object" && !Array.isArray(value[0])) {
+    return value;
+  }
+
+  // Ensure matrix shape: each row is an array
+  const matrix = value.map((row) => (Array.isArray(row) ? row : [row]));
+  const colCount = matrix.reduce((max, row) => Math.max(max, row.length), 0);
+
+  // Single column → flat list of values (1D / no header objects)
+  if (colCount <= 1) {
+    return matrix.map((row) => row[0]);
+  }
+
+  // Multi-column with only one row → keep as [[v1, v2, ...]]
+  if (matrix.length < 2) {
+    return matrix;
+  }
+
+  const headers = matrix[0].map((header) => String(header ?? "").trim());
+  const nonEmptyHeaders = headers.filter((header) => header.length > 0);
+  const fieldNameHeaders = nonEmptyHeaders.filter((header) =>
+    /^[A-Za-z_][A-Za-z0-9_]*$/.test(header)
+  );
+
+  // Majority of non-empty first-row cells look like field names (amfi_mf_code, fund_name).
+  // Or caller forces object rows (e.g. CALCULATESCHEMEBENCHMARK param `data`).
+  const looksLikeFieldNames =
+    fieldNameHeaders.length >= 2 &&
+    fieldNameHeaders.length >= Math.ceil(nonEmptyHeaders.length * 0.7);
+
+  if (!options.forceObjectRows && !looksLikeFieldNames) {
+    // e.g. [["ICICI ...", "Large & Mid Cap"], ["HDFC ...", "Flexi Cap"]]
+    return matrix;
+  }
+
+  if (nonEmptyHeaders.length === 0) {
+    return matrix;
+  }
+
+  const rowsAsObjects = matrix.slice(1).map((row) => {
+    const obj = {};
+    headers.forEach((header, index) => {
+      if (!header) {
+        return;
+      }
+      const cell = row[index];
+      obj[header] = cell === null || cell === undefined ? "" : cell;
+    });
+    return obj;
+  });
+
+  console.log(
+    `[MethodTech] Converted ${rowsAsObjects.length} Excel row(s) → [{column: value}, ...] headers:`,
+    nonEmptyHeaders
+  );
+
+  return rowsAsObjects;
+}
+
+/**
+ * Flatten Excel range values into a plain JS array when needed.
+ * @param {unknown} value
+ * @param {string} paramType
+ * @param {{ paramName?: string }} [meta]
+ */
+function normalizeParamValue(value, paramType, meta = {}) {
   if (value === null || value === undefined || value === "") {
     return undefined;
   }
 
-  if (paramType === "array" && Array.isArray(value)) {
-    if (value.length > 0 && Array.isArray(value[0])) {
-      return value.map((row) => (row.length === 1 ? row[0] : row));
+  if (paramType === "array" || paramType === "any") {
+    if (Array.isArray(value)) {
+      // Param named `data` is a table body for APIs like calculate_scheme_benchmark(data=...)
+      const forceObjectRows = String(meta.paramName || "").toLowerCase() === "data";
+      return excelRangeToBackendArray(value, { forceObjectRows });
+    }
+    // Single cell for array-like payloads
+    if (paramType === "array") {
+      return [value];
     }
     return value;
   }
@@ -40,11 +125,35 @@ function normalizeParamValue(value, paramType) {
 }
 
 /**
+ * Excel custom functions with result.dimensionality=matrix must return a 2D array.
+ * Returning a plain string/number often shows as #CALC!.
+ */
+function toExcelMatrix(value) {
+  if (value === null || value === undefined || value === "") {
+    return [[`${FUNCTIONS_NAMESPACE}: empty result`]];
+  }
+  if (typeof value !== "object") {
+    return [[String(value)]];
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return [[`${FUNCTIONS_NAMESPACE}: empty result`]];
+    }
+    if (Array.isArray(value[0])) {
+      return value;
+    }
+    // 1D → column
+    return value.map((cell) => [cell]);
+  }
+  return [[String(value)]];
+}
+
+/**
  * Turn API result into something Excel can show in cells (value or 2D spill range).
  */
 function formatResultForExcel(result) {
   if (result === null || result === undefined) {
-    return "";
+    return toExcelMatrix(`${FUNCTIONS_NAMESPACE}: empty result`);
   }
 
   // Common API wrappers: { data: ... } / { result: ... } / { results: ... }
@@ -61,12 +170,12 @@ function formatResultForExcel(result) {
   }
 
   if (typeof result !== "object") {
-    return result;
+    return toExcelMatrix(result);
   }
 
   if (Array.isArray(result)) {
     if (result.length === 0) {
-      return "";
+      return toExcelMatrix(`${FUNCTIONS_NAMESPACE}: empty result`);
     }
 
     // Already a matrix
@@ -77,6 +186,9 @@ function formatResultForExcel(result) {
     // Array of objects → header row + value rows for Excel spill
     if (result[0] !== null && typeof result[0] === "object") {
       const keys = Object.keys(result[0]);
+      if (!keys.length) {
+        return toExcelMatrix(`${FUNCTIONS_NAMESPACE}: empty object rows`);
+      }
       return [keys, ...result.map((row) => keys.map((key) => {
         const value = row[key];
         if (value === null || value === undefined) {
@@ -93,15 +205,21 @@ function formatResultForExcel(result) {
     return result.map((value) => [value]);
   }
 
+  // Plain object with no keys
+  const objectKeys = Object.keys(result);
+  if (!objectKeys.length) {
+    return toExcelMatrix(`${FUNCTIONS_NAMESPACE}: empty object`);
+  }
+
   // Plain object → two-column key/value
-  return Object.keys(result).map((key) => {
+  return objectKeys.map((key) => {
     const value = result[key];
     return [key, value !== null && typeof value === "object" ? JSON.stringify(value) : value];
   });
 }
 
 /**
- * Every METHODTECH.* call goes through /api/microsoft/excel/execute/
+ * Every MTECH.* call goes through /api/microsoft/excel/execute/
  * with the catalog function JSON + Excel argument data.
  */
 export async function invokeCatalogFunction(entry, args) {
@@ -115,7 +233,7 @@ export async function invokeCatalogFunction(entry, args) {
 
   params.forEach((param, index) => {
     const raw = args[index];
-    const normalized = normalizeParamValue(raw, param.type);
+    const normalized = normalizeParamValue(raw, param.type, { paramName: param.name });
     if (normalized === undefined) {
       if (param.required) {
         throw new Error(`Missing required parameter: ${param.name}`);
@@ -124,6 +242,11 @@ export async function invokeCatalogFunction(entry, args) {
     }
     data[param.name] = normalized;
   });
+
+  // Exact JSON body the Data API method should receive, e.g.
+  // calculate_scheme_benchmark(data=...) → { "data": [ {...}, {...} ] }
+  // Django MUST post this object (not the inner list alone).
+  const request_body = { ...data };
 
   const payload = {
     id: entry.id,
@@ -137,6 +260,7 @@ export async function invokeCatalogFunction(entry, args) {
     result: entry.result,
     username,
     data,
+    request_body,
   };
 
   const response = await djangoFetch("/api/microsoft/excel/execute/", {
@@ -144,6 +268,7 @@ export async function invokeCatalogFunction(entry, args) {
     body: JSON.stringify(payload),
   });
 
+  console.log(`${FUNCTIONS_NAMESPACE}.${entry.id || entry.name} Data API body must be:`, request_body);
   return formatResultForExcel(response);
 }
 
@@ -179,11 +304,15 @@ export function catalogParamToExcel(param) {
       excelParam.type = "string";
       break;
     case "array":
+    case "any":
+      // Required so Excel can pass A1:J14 into the function.
+      // Without dimensionality, Excel shows #CALC! "Unliftable Array".
       excelParam.type = "any";
       excelParam.dimensionality = "matrix";
       break;
     default:
       excelParam.type = "any";
+      excelParam.dimensionality = "matrix";
       break;
   }
 
@@ -208,7 +337,9 @@ export function catalogItemToExcelMetadata(item) {
     },
   };
 
-  if (item.result && item.result.type === "array") {
+  // Allow spilling tables for array/any results (avoids #CALC! on 2D returns)
+  if (item.result && (item.result.type === "array" || item.result.type === "any" || resultType === "any")) {
+    meta.result.type = "any";
     meta.result.dimensionality = "matrix";
   }
 
@@ -223,7 +354,7 @@ export function catalogToExcelFunctions(catalog) {
 }
 
 /**
- * Bind each catalog function to CustomFunctions so =METHODTECH.MARKETCAP() works.
+ * Bind each catalog function to CustomFunctions so =MTECH.MARKETCAP() works.
  */
 export async function registerCatalogFunctions() {
   const catalog = await getCatalog();
@@ -242,7 +373,16 @@ export async function registerCatalogFunctions() {
 
     const handler = async function catalogHandler() {
       const args = Array.prototype.slice.call(arguments);
-      return invokeCatalogFunction(item, args);
+      try {
+        return await invokeCatalogFunction(item, args);
+      } catch (error) {
+        const message =
+          (error && error.message) ||
+          (typeof error === "string" ? error : "MethodTech function failed");
+        console.error(`${FUNCTIONS_NAMESPACE}.${id} failed:`, error);
+        // Must return a 2D array when result is declared as matrix (avoids #CALC!).
+        return [[`${FUNCTIONS_NAMESPACE} error`], [message]];
+      }
     };
 
     try {
@@ -257,7 +397,7 @@ export async function registerCatalogFunctions() {
 
   console.log(
     "Registered MethodTech functions:",
-    registered.map((id) => `METHODTECH.${id}`).join(", ")
+    registered.map((id) => `${FUNCTIONS_NAMESPACE}.${id}`).join(", ")
   );
 
   // Helpful for debugging / UI

@@ -3,4 +3,5 @@ dist/
 .methodtech/
 .DS_Store
 .env
+.env.local
 *.log
