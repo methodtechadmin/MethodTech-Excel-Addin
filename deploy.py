@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Build MethodTech Excel add-in for Amplify (production .env) and zip dist/.
+Build MethodTech Excel add-in for Amplify (production .env), zip dist/,
+upload the zip to Amplify, start the deployment, then delete local zips.
 
 Usage:
   python deploy.py
 
-Output:
-  Excel-Methodtech-amplify.zip  (dist contents at zip root, forward-slash paths)
+Requires:
+  boto3 + AWS credentials with amplify:CreateDeployment / StartDeployment
 """
 
 from __future__ import annotations
@@ -18,6 +19,9 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
+import boto3
+import urllib.request
+
 ROOT = Path(__file__).resolve().parent
 ENV_FILE = ROOT / ".env"
 ENV_LOCAL = ROOT / ".env.local"
@@ -28,6 +32,11 @@ REQUIRED_DIST_FILES = (
     "functions.json",
     "polyfill.js",
 )
+
+# Amplify (manual zip deploy)
+AMPLIFY_REGION = "ap-south-1"
+AMPLIFY_APP_ID = "d3jl8gkkjv76iz"
+AMPLIFY_BRANCH = "staging"
 
 
 def load_dotenv(path: Path) -> dict[str, str]:
@@ -79,7 +88,6 @@ def confirm_production_env() -> None:
 def run_production_build() -> None:
     print("\n=== 2) npm run build (production) ===")
     cmd = ["npm", "run", "build"]
-    # On Windows, npm is often npm.cmd
     if os.name == "nt":
         cmd = ["npm.cmd", "run", "build"]
 
@@ -142,7 +150,6 @@ def zip_dist() -> Path:
     print("\n=== 4) Zip dist contents (forward-slash paths) ===")
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out = ROOT / f"Excel-Methodtech-amplify-{stamp}.zip"
-    latest = ROOT / "Excel-Methodtech-amplify.zip"
 
     files = [p for p in DIST.rglob("*") if p.is_file()]
     if not files:
@@ -150,19 +157,62 @@ def zip_dist() -> Path:
 
     with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for path in files:
-            # Zip root = dist contents (not a nested dist/ folder)
             arcname = path.relative_to(DIST).as_posix()
             zf.write(path, arcname)
 
-    # Also write/replace a stable name for easy Amplify upload
-    if latest.exists():
-        latest.unlink()
-    latest.write_bytes(out.read_bytes())
-
     print(f"  Created: {out.name}")
-    print(f"  Also:    {latest.name}")
     print(f"  Entries: {len(files)}")
-    return latest
+    return out
+
+
+def amplify_upload_and_deploy(zip_path: Path) -> dict:
+    """
+    Manual Amplify zip deploy:
+      create_deployment -> PUT zip to zipUploadUrl -> start_deployment
+    """
+    print("\n=== 5) Upload zip to Amplify + start deployment ===")
+    amplify = boto3.client("amplify", region_name=AMPLIFY_REGION)
+
+    created = amplify.create_deployment(
+        appId=AMPLIFY_APP_ID,
+        branchName=AMPLIFY_BRANCH,
+    )
+    job_id = created["jobId"]
+    upload_url = created["zipUploadUrl"]
+    print(f"  create_deployment jobId = {job_id}")
+
+    zip_bytes = zip_path.read_bytes()
+    req = urllib.request.Request(
+        upload_url,
+        data=zip_bytes,
+        method="PUT",
+        headers={"Content-Type": "application/zip"},
+    )
+    with urllib.request.urlopen(req, timeout=300) as resp:
+        status = getattr(resp, "status", None) or resp.getcode()
+        if status not in (200, 201):
+            raise SystemExit(f"ERROR: zip upload failed HTTP {status}")
+    print(f"  Uploaded {zip_path.name} ({len(zip_bytes)} bytes)")
+
+    started = amplify.start_deployment(
+        appId=AMPLIFY_APP_ID,
+        branchName=AMPLIFY_BRANCH,
+        jobId=job_id,
+    )
+    summary = started.get("jobSummary") or started
+    print(f"  start_deployment: {summary}")
+    return summary if isinstance(summary, dict) else {"jobSummary": summary}
+
+
+def delete_local_zips(zip_path: Path) -> None:
+    print("\n=== 6) Delete local zip(s) ===")
+    candidates = {zip_path, ROOT / "Excel-Methodtech-amplify.zip"}
+    for path in sorted(candidates):
+        if path.exists():
+            path.unlink()
+            print(f"  Deleted: {path.name}")
+        else:
+            print(f"  Skip (missing): {path.name}")
 
 
 def main() -> int:
@@ -172,11 +222,16 @@ def main() -> int:
     run_production_build()
     validate_dist()
     zip_path = zip_dist()
+    try:
+        amplify_upload_and_deploy(zip_path)
+    finally:
+        delete_local_zips(zip_path)
+
     print("\n=== Done ===")
-    print(f"Upload this zip to Amplify: {zip_path}")
-    print("Then verify:")
-    print("  …/taskpane.html")
-    print("  …/functions.json  (must not be empty)")
+    print(f"Amplify app {AMPLIFY_APP_ID} branch {AMPLIFY_BRANCH} deploy started.")
+    print("Verify:")
+    print("  https://staging.d3jl8gkkjv76iz.amplifyapp.com/taskpane.html")
+    print("  https://staging.d3jl8gkkjv76iz.amplifyapp.com/functions.json")
     return 0
 
 
