@@ -118,7 +118,24 @@ def validate_dist() -> None:
         if name == "functions.json" and path.stat().st_size == 0:
             raise SystemExit("ERROR: dist/functions.json is empty (0 bytes)")
 
+    functions_path = DIST / "functions.json"
+    try:
+        import json
+
+        meta = json.loads(functions_path.read_text(encoding="utf-8"))
+        count = len(meta.get("functions") or [])
+    except Exception as error:
+        raise SystemExit(f"ERROR: dist/functions.json is invalid JSON: {error}") from error
+
+    if count == 0:
+        raise SystemExit(
+            "ERROR: dist/functions.json has 0 functions — Excel will show no =MTECH. suggestions.\n"
+            "  Fix: run local `python deploy_dev.py`, sign in, click Refresh catalog once,\n"
+            "  then re-run `python deploy.py` so .methodtech/catalog-functions.json is merged."
+        )
+
     print(f"  OK: dist has required files ({DIST})")
+    print(f"  OK: functions.json has {count} function(s) for IntelliSense")
 
 
 def zip_dist() -> Path:
