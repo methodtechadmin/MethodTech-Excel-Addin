@@ -16,27 +16,44 @@
     <header class="ms-welcome__header methodtech-header">
       <img class="methodtech-logo" width="90" height="90" src="../../assets/logo-methodtech.png" alt="MethodTech" title="MethodTech" />
     </header>
-    <section id="sideload-msg" class="ms-welcome__main">
-      <h2 class="ms-font-xl">
-        Please
-        <a
-          target="_blank"
-          href="https://learn.microsoft.com/office/dev/add-ins/testing/test-debug-office-add-ins#sideload-an-office-add-in-for-testing"
-          >sideload</a
-        >
-        your add-in to see app body.
-      </h2>
+    <section id="sideload-msg" class="ms-welcome__main" style="display: none">
+      <h2 class="ms-font-xl">Loading MethodTech…</h2>
     </section>
-    <main id="app-body" class="ms-welcome__main" style="display: none">
-      <p class="ms-font-l" id="auth-status">Checking sign-in…</p>
-      <div
-        role="button"
-        id="microsoft-signin"
-        class="ms-welcome__action ms-Button ms-Button--hero ms-font-xl"
-        style="display: none; margin-bottom: 12px"
-      >
-        <span class="ms-Button-label">Sign in with Microsoft</span>
+    <main id="app-body" class="ms-welcome__main" style="display: flex">
+      <p class="ms-font-m methodtech-value">
+        MethodTech brings institutional investment data into Excel — fund screening,
+        holdings, risk, and portfolio analytics — so you can build and analyse models
+        without leaving your workbook.
+      </p>
+      <p class="ms-font-s methodtech-value-example">
+        Example: type <b>=MTECH.ALLFUNDSCHEMES()</b> in a cell to pull live fund data.
+      </p>
+      <p class="ms-font-l" id="auth-status">Sign in to use MethodTech functions.</p>
+      <div class="methodtech-auth-actions" id="auth-actions">
+        <button type="button" id="microsoft-signin" class="methodtech-auth-btn">
+          Sign in
+        </button>
+        <button type="button" id="microsoft-signout" class="methodtech-auth-btn methodtech-auth-btn--secondary" style="display: none">
+          Sign out
+        </button>
+        <a
+          id="microsoft-signup"
+          class="methodtech-auth-link"
+          href="https://www.methodtech.in/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Sign up
+        </a>
       </div>
+      <p class="ms-font-s methodtech-enterprise-note">
+        This is an enterprise add-in and is not acquired for new individual users through AppSource.
+        Register for a MethodTech account at
+        <a href="https://www.methodtech.in/" target="_blank" rel="noopener noreferrer">methodtech.in</a>,
+        then Sign in here with the same email you use on the website (via your Excel Microsoft account).
+        Need help? Contact
+        <a href="mailto:support@methodtech.in">support@methodtech.in</a>.
+      </p>
       <h2 class="ms-font-l">MethodTech functions</h2>
       <button type="button" id="refresh-catalog" class="methodtech-refresh-btn">
         Refresh catalog

@@ -111,3 +111,76 @@ b {
     opacity: 0.6;
     cursor: default;
 }
+
+.methodtech-value,
+.methodtech-value-example {
+    width: 100%;
+    text-align: center;
+    margin: 0 0 10px;
+    line-height: 1.4;
+    color: #323130;
+}
+
+.methodtech-value-example {
+    margin-bottom: 16px;
+    color: #605e5c;
+}
+
+.methodtech-auth-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    margin: 4px 0 16px;
+    width: 100%;
+}
+
+.methodtech-auth-btn {
+    padding: 8px 16px;
+    border: 1px solid #000;
+    background: #000;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.methodtech-auth-btn--secondary {
+    background: #fff;
+    color: #000;
+}
+
+.methodtech-auth-btn:hover:not(:disabled),
+.methodtech-auth-btn:focus:not(:disabled) {
+    background: #222;
+    color: #fff;
+}
+
+.methodtech-auth-btn--secondary:hover:not(:disabled),
+.methodtech-auth-btn--secondary:focus:not(:disabled) {
+    background: #f3f2f1;
+    color: #000;
+}
+
+.methodtech-auth-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.methodtech-auth-link {
+    font-size: 14px;
+    color: #0078d7;
+    text-decoration: underline;
+}
+
+.methodtech-enterprise-note {
+    width: 100%;
+    text-align: center;
+    margin: 0 0 16px;
+    line-height: 1.45;
+    color: #605e5c;
+}
+
+.methodtech-enterprise-note a {
+    color: #0078d7;
+}

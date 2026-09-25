@@ -327,10 +327,14 @@ export function catalogItemToExcelMetadata(item) {
   const name = String(item.name || item.id || "").toUpperCase();
   const resultType = item.result && item.result.type === "array" ? "any" : item.result && item.result.type === "number" ? "number" : item.result && item.result.type === "string" ? "string" : "any";
 
+  // Required by AppSource: Excel "Help on this function" uses helpUrl.
+  const helpUrl = item.helpUrl || item.help_url || "https://www.methodtech.in/";
+
   const meta = {
     id,
     name,
     description: item.description || name,
+    helpUrl,
     parameters: (item.parameters || []).map(catalogParamToExcel),
     result: {
       type: resultType,

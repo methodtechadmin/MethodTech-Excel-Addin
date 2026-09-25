@@ -6,6 +6,7 @@
 /* global console, document, Office */
 
 import { ensureSignedIn } from "../auth/signIn";
+import { clearSession, getSession } from "../auth/session";
 import { FUNCTIONS_NAMESPACE } from "../auth/config";
 import { fetchCatalog, getCatalog } from "../catalog/catalog";
 import { registerCatalogFunctions } from "../catalog/registerFunctions";
@@ -18,6 +19,21 @@ function setAuthStatus(message, isError = false) {
   }
   el.textContent = message;
   el.style.color = isError ? "#a4262c" : "#107c10";
+}
+
+function setAuthButtons({ signedIn }) {
+  const signInBtn = document.getElementById("microsoft-signin");
+  const signOutBtn = document.getElementById("microsoft-signout");
+
+  if (signInBtn) {
+    signInBtn.style.display = signedIn ? "none" : "inline-block";
+    signInBtn.disabled = false;
+    signInBtn.textContent = "Sign in";
+  }
+  if (signOutBtn) {
+    signOutBtn.style.display = signedIn ? "inline-block" : "none";
+    signOutBtn.disabled = false;
+  }
 }
 
 function setCatalogRefreshStatus(message, isError = false) {
@@ -55,6 +71,56 @@ function renderCatalogFunctions(catalog) {
   });
 }
 
+async function showSignedInState() {
+  const catalog = await getCatalog();
+  renderCatalogFunctions(catalog);
+  setAuthStatus("Signed in");
+  setAuthButtons({ signedIn: true });
+}
+
+async function signInWithExcelAccount() {
+  const signInBtn = document.getElementById("microsoft-signin");
+  if (signInBtn) {
+    signInBtn.disabled = true;
+    signInBtn.textContent = "Signing in…";
+  }
+
+  setAuthStatus("Using current Excel account…");
+
+  try {
+    await ensureSignedIn({ force: true, interactive: true });
+    await showSignedInState();
+  } catch (error) {
+    console.error("Excel identity / Django sign-in failed:", error);
+    const detail =
+      (error && error.message) ||
+      (error && error.code != null && `Office auth error ${error.code}`) ||
+      (error && String(error)) ||
+      "unknown error";
+    setAuthStatus(`Sign-in failed: ${detail}`, true);
+    setAuthButtons({ signedIn: false });
+  }
+}
+
+async function signOut() {
+  const signOutBtn = document.getElementById("microsoft-signout");
+  if (signOutBtn) {
+    signOutBtn.disabled = true;
+  }
+
+  try {
+    await clearSession();
+    renderCatalogFunctions([]);
+    setCatalogRefreshStatus("");
+    setAuthStatus("Signed out. Sign in to use MethodTech functions.");
+    setAuthButtons({ signedIn: false });
+  } catch (error) {
+    console.error("Sign-out failed:", error);
+    setAuthStatus(`Sign-out failed: ${(error && error.message) || String(error)}`, true);
+    setAuthButtons({ signedIn: true });
+  }
+}
+
 async function refreshCatalogFromApi() {
   const button = document.getElementById("refresh-catalog");
   if (button) {
@@ -69,6 +135,8 @@ async function refreshCatalogFromApi() {
     await publishCatalogMetadata(catalog);
     const registered = await registerCatalogFunctions();
     renderCatalogFunctions(catalog);
+    setAuthStatus("Signed in");
+    setAuthButtons({ signedIn: true });
     setCatalogRefreshStatus(
       `Catalog refreshed: ${catalog.length} function(s), ${registered.length} registered.`
     );
@@ -86,13 +154,32 @@ async function refreshCatalogFromApi() {
   }
 }
 
-Office.onReady(async () => {
-  document.getElementById("sideload-msg").style.display = "none";
-  document.getElementById("app-body").style.display = "flex";
+function showAppBody() {
+  const sideload = document.getElementById("sideload-msg");
+  const appBody = document.getElementById("app-body");
+  if (sideload) {
+    sideload.style.display = "none";
+  }
+  if (appBody) {
+    appBody.style.display = "flex";
+  }
+}
 
-  const msButton = document.getElementById("microsoft-signin");
-  if (msButton) {
-    msButton.style.display = "none";
+async function initTaskPane() {
+  showAppBody();
+
+  const signInBtn = document.getElementById("microsoft-signin");
+  if (signInBtn) {
+    signInBtn.addEventListener("click", () => {
+      signInWithExcelAccount();
+    });
+  }
+
+  const signOutBtn = document.getElementById("microsoft-signout");
+  if (signOutBtn) {
+    signOutBtn.addEventListener("click", () => {
+      signOut();
+    });
   }
 
   const refreshButton = document.getElementById("refresh-catalog");
@@ -102,20 +189,36 @@ Office.onReady(async () => {
     });
   }
 
-  setAuthStatus("Using current Excel account…");
+  // Restore session if present; otherwise wait for Sign in button.
+  setAuthButtons({ signedIn: false });
+  setAuthStatus("Sign in to use MethodTech functions.");
 
   try {
-    const session = await ensureSignedIn({ force: true, interactive: true });
-    const catalog = await getCatalog();
-    renderCatalogFunctions(catalog);
-    setAuthStatus(`Signed in as ${session.email}`);
+    const existing = await getSession();
+    if (existing && existing.access && existing.email) {
+      await ensureSignedIn({ force: false, interactive: false });
+      await showSignedInState();
+    }
   } catch (error) {
-    console.error("Excel identity / Django sign-in failed:", error);
-    const detail =
-      (error && error.message) ||
-      (error && error.code != null && `Office auth error ${error.code}`) ||
-      (error && String(error)) ||
-      "unknown error";
-    setAuthStatus(`Sign-in failed: ${detail}`, true);
+    console.warn("Could not restore previous session:", error);
+    setAuthButtons({ signedIn: false });
+    setAuthStatus("Sign in to use MethodTech functions.");
   }
-});
+}
+
+// Always show the real UI (never leave reviewers on the old "sideload" placeholder).
+showAppBody();
+
+if (typeof Office !== "undefined" && Office.onReady) {
+  Office.onReady(() => {
+    initTaskPane().catch((error) => {
+      console.error("Task pane init failed:", error);
+      showAppBody();
+      setAuthStatus(`Startup error: ${(error && error.message) || String(error)}`, true);
+    });
+  });
+} else {
+  initTaskPane().catch((error) => {
+    console.error("Task pane init failed (no Office.js):", error);
+  });
+}

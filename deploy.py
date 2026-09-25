@@ -126,10 +126,14 @@ def catalog_item_to_excel_metadata(item: dict) -> dict:
     else:
         result_type = "any"
 
+    # Required by AppSource: Excel "Help on this function" uses helpUrl.
+    help_url = item.get("helpUrl") or item.get("help_url") or "https://www.methodtech.in/"
+
     meta: dict = {
         "id": id_,
         "name": name,
         "description": item.get("description") or name,
+        "helpUrl": help_url,
         "parameters": [catalog_param_to_excel(p) for p in (item.get("parameters") or [])],
         "result": {"type": result_type},
     }
@@ -264,6 +268,28 @@ def zip_dist() -> Path:
     return out
 
 
+AMPLIFY_CORS_HEADERS = """
+customHeaders:
+  - pattern: '**'
+    headers:
+      - key: 'Access-Control-Allow-Origin'
+        value: '*'
+      - key: 'Access-Control-Allow-Methods'
+        value: 'GET, HEAD, OPTIONS'
+      - key: 'Access-Control-Allow-Headers'
+        value: '*'
+      - key: 'Cache-Control'
+        value: 'public, max-age=0, must-revalidate'
+""".strip()
+
+
+def ensure_amplify_cors_headers(amplify) -> None:
+    """Excel Online fetches functions.json cross-origin; Amplify must allow CORS."""
+    print("\n=== 5a) Ensure Amplify CORS custom headers ===")
+    amplify.update_app(appId=AMPLIFY_APP_ID, customHeaders=AMPLIFY_CORS_HEADERS)
+    print("  OK: Access-Control-Allow-Origin=* set for **")
+
+
 def amplify_upload_and_deploy(zip_path: Path) -> dict:
     """
     Manual Amplify zip deploy:
@@ -271,6 +297,7 @@ def amplify_upload_and_deploy(zip_path: Path) -> dict:
     """
     print("\n=== 5) Upload zip to Amplify + start deployment ===")
     amplify = boto3.client("amplify", region_name=AMPLIFY_REGION)
+    ensure_amplify_cors_headers(amplify)
 
     created = amplify.create_deployment(
         appId=AMPLIFY_APP_ID,

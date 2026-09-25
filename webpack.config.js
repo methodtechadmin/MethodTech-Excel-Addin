@@ -181,7 +181,10 @@ module.exports = async (env, options) => {
             });
             const merged = {
               allowCustomDataForDataTypeAny: true,
-              functions: Array.from(byId.values()),
+              functions: Array.from(byId.values()).map((fn) => ({
+                ...fn,
+                helpUrl: fn.helpUrl || "https://www.methodtech.in/",
+              })),
             };
             fs.mkdirSync(path.dirname(distFunctionsPath), { recursive: true });
             fs.writeFileSync(distFunctionsPath, JSON.stringify(merged, null, 2));
@@ -201,6 +204,10 @@ module.exports = async (env, options) => {
           {
             from: "assets/*",
             to: "assets/[name][ext][query]",
+          },
+          {
+            from: "customHttp.yml",
+            to: "customHttp.yml",
           },
           {
             from: "manifest*.xml",
@@ -277,7 +284,10 @@ module.exports = async (env, options) => {
           });
           return {
             allowCustomDataForDataTypeAny: true,
-            functions: Array.from(byId.values()),
+            functions: Array.from(byId.values()).map((fn) => ({
+              ...fn,
+              helpUrl: fn.helpUrl || "https://www.methodtech.in/",
+            })),
           };
         };
 
@@ -412,7 +422,10 @@ module.exports = async (env, options) => {
       });
       const merged = {
         allowCustomDataForDataTypeAny: true,
-        functions: Array.from(byId.values()),
+        functions: Array.from(byId.values()).map((fn) => ({
+          ...fn,
+          helpUrl: fn.helpUrl || "https://www.methodtech.in/",
+        })),
       };
       fs.mkdirSync(path.dirname(distFunctionsPath), { recursive: true });
       fs.writeFileSync(distFunctionsPath, JSON.stringify(merged, null, 2));
