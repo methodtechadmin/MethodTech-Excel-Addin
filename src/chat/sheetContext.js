@@ -22,6 +22,7 @@ export async function readSheetContext() {
 
     const values = trimValues(range.values);
     const address = range.address || "";
+    const location = address.includes("!") ? address : `${sheet.name}!${address}`;
     return {
       available: true,
       sheet: sheet.name,
@@ -29,7 +30,7 @@ export async function readSheetContext() {
       rowCount: range.rowCount,
       columnCount: range.columnCount,
       values,
-      summary: `${sheet.name}!${address} (${range.rowCount} x ${range.columnCount})`,
+      summary: `${location} (${range.rowCount} x ${range.columnCount})`,
     };
   });
 }

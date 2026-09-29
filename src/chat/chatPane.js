@@ -1,3 +1,5 @@
+import { djangoFetch } from "../auth/http";
+import { ensureSignedIn } from "../auth/signIn";
 import { applyExcelActions } from "./excelActions";
 import { readSheetContext } from "./sheetContext";
 
@@ -38,13 +40,27 @@ export async function sendChatMessage(message) {
     return;
   }
 
-  const summary = sheet.summary || "No sheet context.";
-  appendMessage(
-    "assistant",
-    `I can see ${summary}. The answer from MethodTech is connected in the next step.`
-  );
-  setChatStatus("Sheet context captured. Django connection comes next.");
-  return { message: text, context: sheet };
+  setChatStatus("Sending to MethodTech…");
+  await ensureSignedIn({ force: false, interactive: true });
+  const data = await djangoFetch("/api/microsoft/excel/chat/", {
+    method: "POST",
+    body: JSON.stringify({
+      message: text,
+      context: sheet,
+    }),
+  });
+
+  const reply = (data && data.reply) || "No reply returned.";
+  appendMessage("assistant", reply);
+
+  const actions = data && data.excel_actions;
+  if (actions && actions.length) {
+    const done = await applyExcelActions(actions);
+    setChatStatus(done.length ? `Updated the sheet: ${done.join(", ")}.` : "");
+  } else {
+    setChatStatus("");
+  }
+  return data;
 }
 
 export function initChatPane() {
@@ -57,10 +73,21 @@ export function initChatPane() {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     const message = input.value;
+    const button = form.querySelector("button");
     input.value = "";
-    sendChatMessage(message).catch((error) => {
-      setChatStatus((error && error.message) || "Chat failed.", true);
-    });
+    if (button) {
+      button.disabled = true;
+    }
+    sendChatMessage(message)
+      .catch((error) => {
+        appendMessage("assistant", (error && error.message) || "Chat failed.");
+        setChatStatus((error && error.message) || "Chat failed.", true);
+      })
+      .finally(() => {
+        if (button) {
+          button.disabled = false;
+        }
+      });
   });
 }
 
