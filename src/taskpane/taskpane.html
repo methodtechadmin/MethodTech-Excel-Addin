@@ -54,6 +54,20 @@
         Need help? Contact
         <a href="mailto:support@methodtech.in">support@methodtech.in</a>.
       </p>
+      <section class="methodtech-chat" aria-label="MethodTech chat">
+        <h2 class="ms-font-l">Ask MethodTech</h2>
+        <div id="copilot-messages" class="methodtech-chat-messages"></div>
+        <form id="copilot-form" class="methodtech-chat-form">
+          <textarea
+            id="copilot-input"
+            class="methodtech-chat-input"
+            rows="2"
+            placeholder="Ask about the selected cells"
+          ></textarea>
+          <button type="submit" class="methodtech-auth-btn">Send</button>
+        </form>
+        <p class="ms-font-s" id="copilot-status"></p>
+      </section>
       <h2 class="ms-font-l">MethodTech functions</h2>
       <button type="button" id="refresh-catalog" class="methodtech-refresh-btn">
         Refresh catalog
