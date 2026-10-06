@@ -378,6 +378,8 @@ export async function registerCatalogFunctions() {
     const handler = async function catalogHandler() {
       const args = Array.prototype.slice.call(arguments);
       try {
+        const { ensureSignedIn } = await import("../auth/signIn");
+        await ensureSignedIn({ interactive: true });
         return await invokeCatalogFunction(item, args);
       } catch (error) {
         const message =

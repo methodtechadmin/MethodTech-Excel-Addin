@@ -1,17 +1,23 @@
-﻿/* global console, Office */
+/* global console, Office */
 
-import { ensureSignedIn } from "../auth/signIn";
+import { fetchPublicCatalog } from "../catalog/catalog";
+import { registerCatalogFunctions } from "../catalog/registerFunctions";
 
 /**
- * MethodTech custom functions come only from the Django catalog.
- * They are registered at runtime after sign-in + catalog load.
+ * Connect catalog names as soon as Excel starts. Do not wait for sign-in.
+ * A silent sign-in failure in Edge leaves the fx list populated and the cell as #NAME?.
  */
+const catalogReady = fetchPublicCatalog().catch((error) => {
+  console.warn("MethodTech catalog load failed before functions could connect:", error);
+  throw error;
+});
 
-// Shared runtime: sign in and register catalog functions as soon as Office is ready
 if (typeof Office !== "undefined" && Office.onReady) {
   Office.onReady(() => {
-    ensureSignedIn({ interactive: false }).catch((error) => {
-      console.warn("Background MethodTech sign-in/catalog failed:", error);
-    });
+    catalogReady
+      .then(() => registerCatalogFunctions())
+      .catch((error) => {
+        console.warn("MethodTech functions were not connected:", error);
+      });
   });
 }

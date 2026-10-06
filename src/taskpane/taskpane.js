@@ -11,7 +11,6 @@ import { FUNCTIONS_NAMESPACE } from "../auth/config";
 import { fetchCatalog, getCatalog } from "../catalog/catalog";
 import { registerCatalogFunctions } from "../catalog/registerFunctions";
 import { publishCatalogMetadata } from "../catalog/publishMetadata";
-import { initChatPane } from "../chat/chatPane";
 
 function setAuthStatus(message, isError = false) {
   const el = document.getElementById("auth-status");
@@ -189,8 +188,6 @@ async function initTaskPane() {
       refreshCatalogFromApi();
     });
   }
-
-  initChatPane();
 
   // Restore session if present; otherwise wait for Sign in button.
   setAuthButtons({ signedIn: false });
