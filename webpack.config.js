@@ -153,6 +153,10 @@ module.exports = async (env, options) => {
       {
         apply(compiler) {
           compiler.hooks.afterEmit.tap("MethodTechEnsureFunctionsJson", () => {
+            // Local dev must not merge or overwrite the deploy.py catalog.
+            if (dev) {
+              return;
+            }
             const catalogMetaPath = path.resolve(__dirname, ".methodtech", "catalog-functions.json");
             const distFunctionsPath = path.resolve(__dirname, "dist", "functions.json");
             let base = { allowCustomDataForDataTypeAny: true, functions: [] };
@@ -244,8 +248,8 @@ module.exports = async (env, options) => {
           throw new Error("webpack-dev-server is not defined");
         }
 
-        const catalogMetaPath = path.resolve(__dirname, ".methodtech", "catalog-functions.json");
-        const distFunctionsPath = path.resolve(__dirname, "dist", "functions.json");
+        const catalogMetaPath = path.resolve(__dirname, ".methodtech", "catalog-functions.dev.json");
+        const distFunctionsPath = path.resolve(__dirname, ".methodtech", "functions.dev.json");
         let catalogReadyWaiters = [];
 
         const readCatalogMeta = () => {
@@ -337,7 +341,7 @@ module.exports = async (env, options) => {
           res.statusCode = 200;
           res.end(JSON.stringify(merged));
           console.log(
-            `[MethodTech] Served functions.json with ${merged.functions.length} function(s) (${catalogFns.length} from catalog)`
+            `[MethodTech] DEV functions.dev.json served with ${merged.functions.length} function(s) (${catalogFns.length} from catalog-functions.dev.json)`
           );
         };
 
@@ -354,7 +358,9 @@ module.exports = async (env, options) => {
               fs.mkdirSync(path.dirname(catalogMetaPath), { recursive: true });
               fs.writeFileSync(catalogMetaPath, JSON.stringify(functions, null, 2));
               writeMergedFunctionsJson(functions);
-              console.log(`[MethodTech] Catalog API metadata saved: ${functions.length} function(s) — suggestions ready`);
+              console.log(
+                `[MethodTech] DEV catalog-functions.dev.json saved: ${functions.length} function(s) — suggestions ready`
+              );
               notifyCatalogReady();
               res.setHeader("Content-Type", "application/json");
               res.end(JSON.stringify({ ok: true, count: functions.length }));
@@ -402,39 +408,24 @@ module.exports = async (env, options) => {
     console.log(`[MethodTech] Proxying /api and /v1 -> ${djangoProxyTarget}`);
   }
 
-  // If catalog was saved from a previous Excel session, merge it now so the
-  // NEXT Excel launch already has full =METHODTECH. IntelliSense on first load.
-  const catalogMetaPath = path.resolve(__dirname, ".methodtech", "catalog-functions.json");
-  const distFunctionsPath = path.resolve(__dirname, "dist", "functions.json");
-  try {
-    if (fs.existsSync(catalogMetaPath)) {
-      const catalogFns = JSON.parse(fs.readFileSync(catalogMetaPath, "utf8"));
-      let base = { allowCustomDataForDataTypeAny: true, functions: [] };
-      if (fs.existsSync(distFunctionsPath)) {
-        base = JSON.parse(fs.readFileSync(distFunctionsPath, "utf8"));
+  // deploy.py owns dist/functions.json. Local dev uses a separate file so the
+  // two lists are not mixed.
+  if (dev) {
+    const devCatalogPath = path.resolve(__dirname, ".methodtech", "catalog-functions.dev.json");
+    try {
+      if (fs.existsSync(devCatalogPath)) {
+        const catalogFns = JSON.parse(fs.readFileSync(devCatalogPath, "utf8"));
+        console.log(
+          `[MethodTech] DEV catalog-functions.dev.json has ${Array.isArray(catalogFns) ? catalogFns.length : 0} function(s). deploy.py uses catalog-functions.json.`
+        );
+      } else {
+        console.log(
+          "[MethodTech] DEV catalog-functions.dev.json not found. Suggestions update after sign-in. deploy.py uses catalog-functions.json."
+        );
       }
-      const byId = new Map();
-      (base.functions || []).forEach((fn) => {
-        if (fn && fn.id) byId.set(String(fn.id).toUpperCase(), fn);
-      });
-      (catalogFns || []).forEach((fn) => {
-        if (fn && fn.id) byId.set(String(fn.id).toUpperCase(), fn);
-      });
-      const merged = {
-        allowCustomDataForDataTypeAny: true,
-        functions: Array.from(byId.values()).map((fn) => ({
-          ...fn,
-          helpUrl: fn.helpUrl || "https://www.methodtech.in/",
-        })),
-      };
-      fs.mkdirSync(path.dirname(distFunctionsPath), { recursive: true });
-      fs.writeFileSync(distFunctionsPath, JSON.stringify(merged, null, 2));
-      console.log(
-        `[MethodTech] Preloaded ${catalogFns.length} catalog function(s) into functions.json for Excel suggestions`
-      );
+    } catch (error) {
+      console.warn("[MethodTech] Could not read DEV catalog metadata:", error.message);
     }
-  } catch (error) {
-    console.warn("[MethodTech] Could not preload catalog metadata:", error.message);
   }
 
   return config;
