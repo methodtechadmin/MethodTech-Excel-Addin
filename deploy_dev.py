@@ -101,6 +101,22 @@ def kill_port(port: int) -> None:
         print(f"Port {port} cleared.")
 
 
+def remove_stale_function_files() -> None:
+    """Drop the previous local Excel function list so sign-in writes a new one."""
+    print("=== 2b) Remove existing local function metadata ===")
+    stale = (
+        ROOT / ".methodtech" / "catalog-functions.dev.json",
+        ROOT / ".methodtech" / "functions.dev.json",
+    )
+    for path in stale:
+        if path.exists():
+            path.unlink()
+            print(f"  Deleted: {path.relative_to(ROOT)}")
+        else:
+            print(f"  Skip (missing): {path.relative_to(ROOT)}")
+    print("  A new list is written after you sign in and the catalog API responds.")
+
+
 def npm_start() -> None:
     print("=== 3) npm start ===")
     print("Starting local add-in (Ctrl+C to stop)...")
@@ -117,6 +133,7 @@ def main() -> None:
     print(f"MethodTech local restart (port {port})")
     npm_stop()
     kill_port(port)
+    remove_stale_function_files()
     npm_start()
 
 

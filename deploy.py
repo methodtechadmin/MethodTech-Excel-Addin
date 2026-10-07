@@ -165,6 +165,21 @@ def fetch_catalog_list(django_base_url: str) -> list[dict]:
     raise SystemExit("ERROR: catalog response was not a function list.")
 
 
+def remove_stale_function_files() -> None:
+    """Drop the previous catalog cache and dist/functions.json before a new build."""
+    print("\n=== 1a) Remove existing function metadata ===")
+    stale = (
+        CATALOG_META,
+        DIST / "functions.json",
+    )
+    for path in stale:
+        if path.exists():
+            path.unlink()
+            print(f"  Deleted: {path.relative_to(ROOT)}")
+        else:
+            print(f"  Skip (missing): {path.relative_to(ROOT)}")
+
+
 def ensure_catalog_metadata(django_base_url: str) -> int:
     """
     Fetch catalog from Django and write .methodtech/catalog-functions.json so
@@ -345,6 +360,7 @@ def main() -> int:
     os.chdir(ROOT)
     print(f"MethodTech deploy — {ROOT}\n")
     env = confirm_production_env()
+    remove_stale_function_files()
     ensure_catalog_metadata(env["DJANGO_BASE_URL"].strip())
     run_production_build()
     validate_dist()
