@@ -184,3 +184,62 @@ b {
 .methodtech-enterprise-note a {
     color: #0078d7;
 }
+
+.methodtech-chat {
+    width: 100%;
+    margin: 0 0 20px;
+    text-align: left;
+}
+
+.methodtech-chat h2 {
+    text-align: center;
+}
+
+.methodtech-chat-messages {
+    width: 100%;
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid #edebe9;
+    background: #faf9f8;
+    padding: 8px;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+}
+
+.methodtech-chat-msg {
+    margin: 0 0 8px;
+    padding: 8px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+}
+
+.methodtech-chat-msg--user {
+    background: #deecf9;
+}
+
+.methodtech-chat-msg--assistant {
+    background: #fff;
+    border: 1px solid #edebe9;
+}
+
+.methodtech-chat-form {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    align-items: flex-end;
+}
+
+.methodtech-chat-input {
+    flex: 1;
+    min-width: 0;
+    resize: vertical;
+    padding: 8px;
+    border: 1px solid #8a8886;
+    font: inherit;
+}
+
+#copilot-status {
+    width: 100%;
+    margin: 8px 0 0;
+    min-height: 1.2em;
+}
