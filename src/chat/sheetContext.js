@@ -1,13 +1,5 @@
 /* global Excel */
 
-const MAX_ROWS = 20;
-const MAX_COLS = 8;
-
-function trimValues(values) {
-  const rows = Array.isArray(values) ? values.slice(0, MAX_ROWS) : [];
-  return rows.map((row) => (Array.isArray(row) ? row.slice(0, MAX_COLS) : []));
-}
-
 export async function readSheetContext() {
   if (typeof Excel === "undefined") {
     return { available: false, summary: "Open this pane inside Excel to read the sheet." };
@@ -20,7 +12,7 @@ export async function readSheetContext() {
     range.load("address, values, rowCount, columnCount");
     await context.sync();
 
-    const values = trimValues(range.values);
+    const values = Array.isArray(range.values) ? range.values : [];
     const address = range.address || "";
     const location = address.includes("!") ? address : `${sheet.name}!${address}`;
     return {
